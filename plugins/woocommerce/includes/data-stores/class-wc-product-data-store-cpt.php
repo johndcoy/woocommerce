@@ -2468,6 +2468,44 @@ class WC_Product_Data_Store_CPT extends WC_Data_Store_WP implements WC_Object_Da
 		);
 		foreach ( $date_queries as $query_var_key => $db_key ) {
 			if ( isset( $query_vars[ $query_var_key ] ) && '' !== $query_vars[ $query_var_key ] ) {
+				$date_value = $query_vars[ $query_var_key ];
+
+				// Fail closed rather than run without the filter. That matters most for the two
+				// meta-backed sale-date keys, whose clause compares as a string, so dropping it
+				// returns every product that has a sale date; date_created and date_modified are
+				// post columns and are treated the same way for consistency.
+				//
+				// The value still goes through parse_date_for_wp_query() below, because that method
+				// is public and overridable and skipping it would silently disable an extension's
+				// override. It normalises an unusable value on its own.
+				if ( ! is_scalar( $date_value ) && ! ( is_object( $date_value ) && method_exists( $date_value, '__toString' ) ) ) {
+					$wp_query_args['errors'][] = new WP_Error(
+						'woocommerce_product_query_invalid_date',
+						__( 'Invalid date query.', 'woocommerce' )
+					);
+					// post__in survives a callback that rebuilds the args and drops 'errors'. Any
+					// caller-supplied 'p' is removed with it, because WP_Query honours 'p' in
+					// preference to post__in.
+					$wp_query_args['post__in'] = array( 0 );
+					unset( $wp_query_args['p'], $wp_query_args['page_id'], $wp_query_args['attachment_id'], $wp_query_args['subpost_id'] );
+
+					// One line per distinct failure per process; a loop over bad data would otherwise
+					// write one line per iteration now that it no longer stops the caller.
+					static $logged_query_failures = array();
+
+					if ( ! isset( $logged_query_failures['woocommerce_product_query_invalid_date'] ) ) {
+						$logged_query_failures['woocommerce_product_query_invalid_date'] = true;
+
+						wc_get_logger()->warning(
+							__( 'Malformed product query args. Returning no products.', 'woocommerce' ),
+							array(
+								'code'   => 'woocommerce_product_query_invalid_date',
+								'origin' => __METHOD__,
+								'source' => 'legacy-product-query',
+							)
+						);
+					}
+				}
 
 				// Remove any existing meta queries for the same keys to prevent conflicts.
 				$existing_queries = wp_list_pluck( $wp_query_args['meta_query'], 'key', true );
