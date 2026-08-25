@@ -86,14 +86,24 @@ class ItemQuantityLimits {
 			return;
 		}
 
+		$has_min_filter = has_filter( 'woocommerce_quantity_input_min_admin' );
+
 		foreach ( $items['order_item_qty'] as $item_id => $posted_qty ) {
+			$qty = (float) wc_stock_amount( wp_unslash( $posted_qty ) );
+
+			// Without a filter the minimum is min( 0, stored quantity ), which is
+			// never above 0, so a non-negative quantity cannot fail: skip the
+			// per-item and product lookups on this hot path.
+			if ( $qty >= 0 && ! $has_min_filter ) {
+				continue;
+			}
+
 			$item = WC_Order_Factory::get_order_item( absint( $item_id ) );
 
 			if ( ! $item instanceof WC_Order_Item_Product ) {
 				continue;
 			}
 
-			$qty = (float) wc_stock_amount( wp_unslash( $posted_qty ) );
 			$min = (float) $this->get_quantity_input_min( $item );
 
 			if ( $qty < $min ) {
