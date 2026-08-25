@@ -38,13 +38,17 @@ class ItemQuantityLimits {
 
 		if ( $qty < $min ) {
 			throw new \Exception(
-				esc_html(
-					sprintf(
-						/* translators: 1: product name, 2: minimum quantity accepted */
-						__( 'The quantity of "%1$s" must be %2$s or higher.', 'woocommerce' ),
-						$product->get_name(),
-						wc_format_localized_decimal( (string) $min )
-					)
+				// phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- The message is shown in a JS alert, not rendered as HTML.
+				html_entity_decode(
+					wp_strip_all_tags(
+						sprintf(
+							/* translators: 1: product name, 2: minimum quantity accepted */
+							__( 'The quantity of "%1$s" must be %2$s or higher.', 'woocommerce' ),
+							$product->get_name(),
+							wc_format_localized_decimal( (string) $min )
+						)
+					),
+					ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML401
 				)
 			);
 		}
@@ -82,13 +86,17 @@ class ItemQuantityLimits {
 
 			if ( $qty < $min ) {
 				throw new \Exception(
-					esc_html(
-						sprintf(
-							/* translators: 1: order item name, 2: minimum quantity accepted */
-							__( 'The quantity of "%1$s" must be %2$s or higher.', 'woocommerce' ),
-							$item->get_name(),
-							wc_format_localized_decimal( (string) $min )
-						)
+					// phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- The message is shown in a JS alert, not rendered as HTML.
+					html_entity_decode(
+						wp_strip_all_tags(
+							sprintf(
+								/* translators: 1: order item name, 2: minimum quantity accepted */
+								__( 'The quantity of "%1$s" must be %2$s or higher.', 'woocommerce' ),
+								$item->get_name(),
+								wc_format_localized_decimal( (string) $min )
+							)
+						),
+						ENT_QUOTES | ENT_SUBSTITUTE | ENT_HTML401
 					)
 				);
 			}
