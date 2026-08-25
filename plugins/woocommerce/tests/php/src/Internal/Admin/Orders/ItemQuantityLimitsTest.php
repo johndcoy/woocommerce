@@ -28,6 +28,46 @@ class ItemQuantityLimitsTest extends WC_Unit_Test_Case {
 	}
 
 	/**
+	 * @testdox get_quantity_input_min returns 0 for an item with a positive quantity.
+	 */
+	public function test_min_is_zero_for_positive_quantity_item(): void {
+		$order = WC_Helper_Order::create_order();
+		$items = array_values( $order->get_items() );
+
+		$this->assertSame( '0', $this->sut->get_quantity_input_min( $items[0] ) );
+	}
+
+	/**
+	 * @testdox get_quantity_input_min floors at the stored quantity when it is negative, so existing negative orders stay editable.
+	 */
+	public function test_min_floors_at_stored_negative_quantity(): void {
+		$order = WC_Helper_Order::create_order();
+		$items = array_values( $order->get_items() );
+		$item  = $items[0];
+		$item->set_quantity( -5 );
+		$item->save();
+
+		$this->assertSame( '-5', $this->sut->get_quantity_input_min( $item ) );
+	}
+
+	/**
+	 * @testdox get_quantity_input_min applies the woocommerce_quantity_input_min_admin filter.
+	 */
+	public function test_min_is_filterable(): void {
+		$order = WC_Helper_Order::create_order();
+		$items = array_values( $order->get_items() );
+
+		$callback = function () {
+			return '-9999';
+		};
+		add_filter( 'woocommerce_quantity_input_min_admin', $callback );
+		$min = $this->sut->get_quantity_input_min( $items[0] );
+		remove_filter( 'woocommerce_quantity_input_min_admin', $callback );
+
+		$this->assertSame( '-9999', $min );
+	}
+
+	/**
 	 * @testdox validate_posted_item_quantities throws when a posted quantity is below the minimum.
 	 */
 	public function test_validate_posted_throws_below_min(): void {
@@ -44,23 +84,20 @@ class ItemQuantityLimitsTest extends WC_Unit_Test_Case {
 	}
 
 	/**
-	 * @testdox validate_posted_item_quantities applies the woocommerce_quantity_input_min_admin filter.
+	 * @testdox validate_posted_item_quantities accepts a negative quantity when the stored quantity is already that negative.
 	 */
-	public function test_validate_posted_min_is_filterable(): void {
+	public function test_validate_posted_accepts_existing_negative_quantity(): void {
 		$order = WC_Helper_Order::create_order();
 		$items = array_values( $order->get_items() );
 		$item  = $items[0];
+		$item->set_quantity( -5 );
+		$item->save();
 
-		$callback = function () {
-			return '-9999';
-		};
-		add_filter( 'woocommerce_quantity_input_min_admin', $callback );
 		$this->sut->validate_posted_item_quantities(
 			array(
 				'order_item_qty' => array( $item->get_id() => '-5' ),
 			)
 		);
-		remove_filter( 'woocommerce_quantity_input_min_admin', $callback );
 
 		// No exception means the payload was accepted.
 		$this->assertTrue( true );

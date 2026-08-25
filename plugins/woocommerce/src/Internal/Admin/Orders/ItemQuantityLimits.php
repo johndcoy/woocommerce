@@ -12,12 +12,30 @@ use WC_Product;
  *
  * The admin order editor renders quantity inputs with a minimum of 0, so
  * merchants cannot enter negative quantities. Orders created through the
- * REST API or by extensions may contain negative quantities; those are not
- * supported in the admin editor, and editing them requires raising the
- * quantity to the minimum (or filtering it via
- * 'woocommerce_quantity_input_min_admin').
+ * REST API or by extensions may already contain negative quantities, so for
+ * existing items the minimum is floored at the stored quantity to keep those
+ * orders editable.
  */
 class ItemQuantityLimits {
+
+	/**
+	 * Get the minimum quantity accepted for an existing order item in the admin editor.
+	 *
+	 * @since 11.2.0
+	 * @param WC_Order_Item_Product $item Line item being edited.
+	 * @return string Numeric string, filtered through 'woocommerce_quantity_input_min_admin'.
+	 */
+	public function get_quantity_input_min( WC_Order_Item_Product $item ): string {
+		$product = $item->get_product();
+		$default = (string) min( 0, (float) $item->get_quantity() );
+
+		/**
+		 * This filter is documented in includes/admin/meta-boxes/views/html-order-item.php
+		 *
+		 * @since 5.8.0
+		 */
+		return (string) apply_filters( 'woocommerce_quantity_input_min_admin', $default, $product, 'edit' );
+	}
 
 	/**
 	 * Validate the quantity requested for a product being added to an order.
@@ -61,7 +79,7 @@ class ItemQuantityLimits {
 	 * @param array $items Posted items, as parsed from the serialized form data
 	 *                     (the same shape wc_save_order_items receives).
 	 * @return void
-	 * @throws \Exception When a quantity is below the allowed minimum.
+	 * @throws \Exception When a quantity is below the item's allowed minimum.
 	 */
 	public function validate_posted_item_quantities( array $items ): void {
 		if ( empty( $items['order_item_qty'] ) || ! is_array( $items['order_item_qty'] ) ) {
@@ -76,13 +94,7 @@ class ItemQuantityLimits {
 			}
 
 			$qty = (float) wc_stock_amount( wp_unslash( $posted_qty ) );
-
-			/**
-			 * This filter is documented in includes/admin/meta-boxes/views/html-order-item.php
-			 *
-			 * @since 5.8.0
-			 */
-			$min = (float) apply_filters( 'woocommerce_quantity_input_min_admin', '0', $item->get_product(), 'edit' );
+			$min = (float) $this->get_quantity_input_min( $item );
 
 			if ( $qty < $min ) {
 				throw new \Exception(
